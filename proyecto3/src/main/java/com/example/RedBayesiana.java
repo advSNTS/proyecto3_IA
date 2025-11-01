@@ -280,4 +280,130 @@ public class RedBayesiana {
         }
         return true;
     }
+
+
+        // 4. Función original para mostrar el grafo en consola (como fallback)
+    public void printGraph() {
+        System.out.println("=== RED BAYESIANA ===");
+        for (Node node : nodes.values()) {
+            System.out.println("Nodo: " + node.name);
+            System.out.println("  Valores: " + node.values);
+            List<String> parentNames = new ArrayList<>();
+            for (Node parent : node.parents) {
+                parentNames.add(parent.name);
+            }
+            System.out.println("  Padres: " + parentNames);
+            System.out.println("  Probabilidades: " + node.probabilities.size() + " entradas");
+        }
+        System.out.println("Dependencias:");
+        for (String[] dep : dependencies) {
+            System.out.println("  " + dep[0] + " -> " + dep[1]);
+        }
+    }
+    
+    // 5. Algoritmo de inferencia por enumeración - PARA UN VALOR ESPECÍFICO
+    public double enumerationAsk(String queryVar, String queryValue, 
+                                Map<String, String> evidence) {
+        List<String> hiddenVars = new ArrayList<>(nodes.keySet());
+        hiddenVars.remove(queryVar);
+        hiddenVars.removeAll(evidence.keySet());
+        
+        double probability = enumerateAll(hiddenVars, evidence, queryVar, queryValue);
+        
+        // Calcular factor de normalización
+        double alpha = 0.0;
+        Node queryNode = nodes.get(queryVar);
+        for (String value : queryNode.values) {
+            alpha += enumerateAll(hiddenVars, evidence, queryVar, value);
+        }
+        
+        if (alpha > 0) {
+            return probability / alpha;
+        } else {
+            return 0.0;
+        }
+    }
+    
+    // 6. Inferencia por enumeración para TODOS los valores de la variable de consulta
+    public Map<String, Double> enumerationAskAll(String queryVar, Map<String, String> evidence) {
+        Map<String, Double> results = new HashMap<>();
+        List<String> hiddenVars = new ArrayList<>(nodes.keySet());
+        hiddenVars.remove(queryVar);
+        hiddenVars.removeAll(evidence.keySet());
+        
+        Node queryNode = nodes.get(queryVar);
+        
+        // Calcular probabilidades sin normalizar para cada valor
+        double totalUnnormalized = 0.0;
+        for (String value : queryNode.values) {
+            double prob = enumerateAll(hiddenVars, evidence, queryVar, value);
+            results.put(value, prob);
+            totalUnnormalized += prob;
+        }
+        
+        // Normalizar los resultados
+        if (totalUnnormalized > 0) {
+            for (String value : results.keySet()) {
+                results.put(value, results.get(value) / totalUnnormalized);
+            }
+        }
+        
+        return results;
+    }
+    
+    private double enumerateAll(List<String> vars, Map<String, String> evidence, 
+                               String queryVar, String queryValue) {
+        if (vars.isEmpty()) {
+            return computeProbability(evidence, queryVar, queryValue);
+        }
+        
+        String firstVar = vars.get(0);
+        List<String> restVars = vars.subList(1, vars.size());
+        
+        double sum = 0.0;
+        Node node = nodes.get(firstVar);
+        
+        for (String value : node.values) {
+            Map<String, String> newEvidence = new HashMap<>(evidence);
+            newEvidence.put(firstVar, value);
+            sum += enumerateAll(restVars, newEvidence, queryVar, queryValue);
+        }
+        
+        return sum;
+    }
+    
+    private double computeProbability(Map<String, String> assignment, 
+                                    String queryVar, String queryValue) {
+        double product = 1.0;
+        
+        for (String varName : nodes.keySet()) {
+            Node node = nodes.get(varName);
+            String value;
+            
+            if (assignment.containsKey(varName)) {
+                value = assignment.get(varName);
+            } else if (varName.equals(queryVar)) {
+                value = queryValue;
+            } else {
+                // Variable no asignada - esto no debería pasar en enumeración completa
+                continue;
+            }
+            
+            if (value == null) continue;
+            
+            List<String> parentValues = new ArrayList<>();
+            for (Node parent : node.parents) {
+                String parentValue = assignment.get(parent.name);
+                if (parentValue != null) {
+                    parentValues.add(parentValue);
+                }
+            }
+            
+            double prob = node.getProbability(parentValues, value);
+            product *= prob;
+        }
+        
+        return product;
+    }
+    
     
