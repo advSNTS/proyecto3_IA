@@ -405,5 +405,109 @@ public class RedBayesiana {
         
         return product;
     }
+
+// 7. Función para generar traza de inferencia
+    public String generateInferenceTrace(String queryVar, Map<String, String> evidence) {
+        StringBuilder trace = new StringBuilder();
+        trace.append("=== TRAZA DE INFERENCIA POR ENUMERACIÓN ===\n");
+        trace.append("Consulta: P(").append(queryVar).append(" | Evidencia: ").append(evidence).append(")\n\n");
+        
+        List<String> hiddenVars = new ArrayList<>(nodes.keySet());
+        hiddenVars.remove(queryVar);
+        hiddenVars.removeAll(evidence.keySet());
+        
+        trace.append("Variables ocultas: ").append(hiddenVars).append("\n");
+        //trace.append("Ecuación: P(").append(queryVar).append("|e) = α * Σ P(").append(queryVar).append(",e)\n");
+        //trace.append("Donde α = 1 / Σ P(").append(queryVar).append("=q_i,e) para todos los valores q_i de ").append(queryVar).append("\n\n");
+        
+        Node queryNode = nodes.get(queryVar);
+        
+        // Calcular probabilidades sin normalizar para cada valor con traza
+        trace.append("Paso 1: Calcular probabilidades sin normalizar para cada valor de ").append(queryVar).append("\n");
+        Map<String, Double> unnormalizedProbs = new HashMap<>();
+        double totalUnnormalized = 0.0;
+        
+        for (String value : queryNode.values) {
+            trace.append("\n--- Cálculo para ").append(queryVar).append(" = ").append(value).append(" ---\n");
+            double prob = enumerateAllWithTrace(hiddenVars, evidence, queryVar, value, trace, 1);
+            unnormalizedProbs.put(value, prob);
+            totalUnnormalized += prob;
+            trace.append("P(").append(queryVar).append("=").append(value).append(", e) = ").append(String.format("%.6f", prob)).append("\n");
+        }
+        
+        trace.append("\nPaso 2: Calcular factor de normalización α\n");
+        trace.append("α = 1 / [");
+        
+        List<String> normalizationTerms = new ArrayList<>();
+        for (String value : queryNode.values) {
+            normalizationTerms.add("P(" + queryVar + "=" + value + ",e)=" + 
+                                 String.format("%.6f", unnormalizedProbs.get(value)));
+        }
+        
+        trace.append(String.join(" + ", normalizationTerms));
+        trace.append("]\n");
+        trace.append("α = 1 / ").append(String.format("%.6f", totalUnnormalized));
+        
+        if (totalUnnormalized > 0) {
+            double alpha = 1.0 / totalUnnormalized;
+            trace.append(" = ").append(String.format("%.6f", alpha)).append("\n");
+            
+            trace.append("\nPaso 3: Normalizar resultados\n");
+            trace.append("Resultados normalizados:\n");
+            
+            for (String value : queryNode.values) {
+                double normalizedResult = unnormalizedProbs.get(value) * alpha;
+                trace.append("  P(").append(queryVar).append("=").append(value).append("|e) = ")
+                     .append(String.format("%.6f", unnormalizedProbs.get(value)))
+                     .append(" * ").append(String.format("%.6f", alpha))
+                     .append(" = ").append(String.format("%.6f", normalizedResult)).append("\n");
+            }
+            
+            trace.append("\n=== RESULTADOS FINALES ===\n");
+            for (String value : queryNode.values) {
+                double normalizedResult = unnormalizedProbs.get(value) * alpha;
+                trace.append("P(").append(queryVar).append("=").append(value).append(" | Evidencia) = ")
+                     .append(String.format("%.6f", normalizedResult)).append("\n");
+            }
+            
+        } else {
+            trace.append("\n¡Error! La suma de probabilidades es cero, no se puede normalizar.\n");
+        }
+        
+        return trace.toString();
+    }
     
-    
+    private double enumerateAllWithTrace(List<String> vars, Map<String, String> evidence, 
+                                       String queryVar, String queryValue, 
+                                       StringBuilder trace, int depth) {
+        if (vars.isEmpty()) {
+            double prob = computeProbability(evidence, queryVar, queryValue);
+            trace.append("  ".repeat(depth)).append("Asignación completa: ")
+                 .append(evidence).append(" → ").append(String.format("%.6f", prob)).append("\n");
+            return prob;
+        }
+        
+        String firstVar = vars.get(0);
+        List<String> restVars = vars.subList(1, vars.size());
+        
+        trace.append("  ".repeat(depth)).append("Enumerando variable: ").append(firstVar).append("\n");
+        
+        double sum = 0.0;
+        Node node = nodes.get(firstVar);
+        
+        for (String value : node.values) {
+            Map<String, String> newEvidence = new HashMap<>(evidence);
+            newEvidence.put(firstVar, value);
+            
+            trace.append("  ".repeat(depth)).append("  ").append(firstVar)
+                 .append(" = ").append(value).append("\n");
+                 
+            sum += enumerateAllWithTrace(restVars, newEvidence, queryVar, 
+                                       queryValue, trace, depth + 1);
+        }
+        
+        trace.append("  ".repeat(depth)).append("Suma parcial para ")
+             .append(firstVar).append(": ").append(String.format("%.6f", sum)).append("\n");
+        
+        return sum;
+    }
