@@ -511,3 +511,122 @@ public class RedBayesiana {
         return sum;
     }
     
+    //------------------------------------------------------------------------------------------------
+    public static void main(String[] args) {
+        RedBayesiana bn = new RedBayesiana();
+        
+        try {
+            // Ejemplo de clase
+            System.out.println("=== EJEMPLO DE CLASE ===");
+            testClassExample(bn);
+            
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    // Método para probar el ejemplo de clase
+    public static void testClassExample(RedBayesiana bn) throws IOException {
+        // Crear archivos CSV para el ejemplo de clase
+        createClassExampleFiles();
+        
+        // Cargar datos
+        System.out.println("Cargando dependencias...");
+        bn.loadDependencies("dependencias.csv");
+        
+        System.out.println("Cargando probabilidades...");
+        bn.loadProbabilities("probabilidades.csv");
+        
+        // Mostrar grafo VISUALMENTE
+        bn.displayGraph();
+        
+        // Mostrar en consola
+        //System.out.println("\n=== REPRESENTACIÓN EN CONSOLA ===");
+        //bn.printGraph();
+        
+        // Casos de prueba
+        System.out.println("\n=== CASOS DE PRUEBA EJEMPLO DE CLASE ===");
+        
+        // CASO DEL PDF: P(Appointment | Rain=light, Maintenance=no)
+        System.out.println("\n--- CASO: P(Appointment | Rain=light, Maintenance=no) ---");
+        Map<String, String> evidence = new HashMap<>();
+        evidence.put("Rain", "light");
+        evidence.put("Maintenance", "no");
+        
+        // Usar el nuevo método para obtener todas las probabilidades
+        Map<String, Double> results = bn.enumerationAskAll("Appointment", evidence);
+        
+        System.out.println("Resultados directos:");
+        for (Map.Entry<String, Double> entry : results.entrySet()) {
+            System.out.println("  P(Appointment=" + entry.getKey() + " | evidence) = " + 
+                             String.format("%.6f", entry.getValue()));
+        }
+        
+        // Generar traza detallada
+        String trace = bn.generateInferenceTrace("Appointment", evidence);
+        System.out.println("\n" + trace);
+        
+        // Guardar traza en archivo
+        try (PrintWriter out = new PrintWriter("traza_ejemplo.txt")) {
+            out.println(trace);
+        }
+    }
+    
+    // Método para crear archivos del ejemplo de clase
+    public static void createClassExampleFiles() throws IOException {
+        // Archivo de dependencias
+        try (PrintWriter out = new PrintWriter("dependencias.csv")) {
+            out.println("Child,Parent");
+            out.println("Maintenance,Rain");
+            out.println("Train,Rain");
+            out.println("Train,Maintenance");
+            out.println("Appointment,Train");
+        }
+        
+        // Archivo de probabilidades
+        try (PrintWriter out = new PrintWriter("probabilidades.csv")) {
+            // Rain
+            out.println("Rain,Value,Probability");
+            out.println("Rain,none,0.7");
+            out.println("Rain,light,0.2");
+            out.println("Rain,heavy,0.1");
+            out.println();
+            
+            // Maintenance
+            out.println("Maintenance,Rain,Value,Probability");
+            out.println("Maintenance,none,yes,0.4");
+            out.println("Maintenance,none,no,0.6");
+            out.println("Maintenance,light,yes,0.2");
+            out.println("Maintenance,light,no,0.8");
+            out.println("Maintenance,heavy,yes,0.1");
+            out.println("Maintenance,heavy,no,0.9");
+            out.println();
+            
+            // Train
+            out.println("Train,Rain,Maintenance,Value,Probability");
+            out.println("Train,none,yes,on time,0.8");
+            out.println("Train,none,yes,delayed,0.2");
+            out.println("Train,none,no,on time,0.9");
+            out.println("Train,none,no,delayed,0.1");
+            out.println("Train,light,yes,on time,0.6");
+            out.println("Train,light,yes,delayed,0.4");
+            out.println("Train,light,no,on time,0.7");
+            out.println("Train,light,no,delayed,0.3");
+            out.println("Train,heavy,yes,on time,0.4");
+            out.println("Train,heavy,yes,delayed,0.6");
+            out.println("Train,heavy,no,on time,0.5");
+            out.println("Train,heavy,no,delayed,0.5");
+            out.println();
+            
+            // Appointment
+            out.println("Appointment,Train,Value,Probability");
+            out.println("Appointment,on time,attend,0.9");
+            out.println("Appointment,on time,miss,0.1");
+            out.println("Appointment,delayed,attend,0.6");
+            out.println("Appointment,delayed,miss,0.4");
+        }
+        
+        System.out.println("Archivos CSV creados exitosamente.");
+    }
+}
+    
